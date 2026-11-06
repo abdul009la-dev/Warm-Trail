@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Warm Trail</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; overflow: hidden;
+    background: #000; height: 100%;
+    touch-action: none;
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  canvas {
+    display: block; position: absolute; top: 0; left: 0;
+    touch-action: none;
+  }
+
+  /* Кнопка переключения языка */
+  #langToggle {
+    position: fixed;
+    top: 15px; right: 15px;
+    background: rgba(16, 29, 48, 0.8);
+    border: 1px solid #526987;
+    color: #d8eaff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 50;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+  }
+  #langToggle:active {
+    transform: scale(0.95);
+    background: rgba(30, 50, 80, 0.9);
+  }
+
+  /* ===== Стили для формы обратной связи ===== */
+  #feedbackModal {
+    display: none;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    backdrop-filter: blur(4px);
+  }
+  .feedback-content {
+    background: #12281f;
+    border: 2px solid #8cffc8;
+    border-radius: 16px;
+    padding: 25px;
+    width: 100%;
+    max-width: 450px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .feedback-content h2 {
+    color: #8cffc8;
+    margin: 0 0 10px 0;
+    font-size: 22px;
+  }
+  .feedback-content p {
+    color: #b0d8c8;
+    font-size: 14px;
+    margin: 0 0 15px 0;
+    line-height: 1.4;
+  }
+  #feedbackText {
+    width: 100%;
+    height: 120px;
+    background: #0a1812;
+    color: #fff;
+    border: 1px solid #526987;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 16px;
+    resize: none;
+    box-sizing: border-box;
+    margin-bottom: 15px;
+    font-family: inherit;
+    outline: none;
+  }
+  #feedbackText:focus {
+    border-color: #8cffc8;
+  }
+  .fb-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  .fb-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.1s;
+  }
+  .fb-btn:active { transform: scale(0.95); }
+  .fb-btn-send {
+    background: #1d5c3a;
+    color: #fff;
+    border: 1px solid #8cffc8;
+  }
+  .fb-btn-cancel {
+    background: #2a1a1a;
+    color: #ffb060;
+    border: 1px solid #5c1d1d;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<button id="langToggle">RU</button>
+
+<!-- Модальное окно для отзывов -->
+<div id="feedbackModal">
+  <div class="feedback-content">
+    <h2 id="fbTitle">✉️ Feedback</h2>
+    <p id="fbDesc">Write your feedback, idea or report a bug. It helps make the game better!</p>
+    <textarea id="feedbackText" placeholder="Your message..."></textarea>
+    <div class="fb-buttons">
+      <button class="fb-btn fb-btn-cancel" id="cancelFeedback">Cancel</button>
+      <button class="fb-btn fb-btn-send" id="sendFeedback">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ============ LOCALIZATION SYSTEM ============
+let currentLang = 'en'; // 'en' - основной, 'ru' - дополнительный
+
+const LANG = {
+  en: {
+    title: 'WARM TRAIL',
+    subtitle: 'Night shift in a glass greenhouse.',
+    inst1: 'Turn on 3 generators and escape before dawn.',
+    inst2: 'Monsters are blind but sense your trail:',
+    inst3: 'heat, footstep sound, and light.',
+    inst4: 'Control the trail you leave behind.',
+    instPC: 'WASD / Arrows - move, Shift - run, E - mist.',
+    instTouch: 'Joystick left, mist - right.',
+    btnStart: 'Start Shift',
+    btnFeedback: '✉️ Contact Developer',
+    btnMenu: 'Main Menu',
+    btnFeedbackOver: '✉️ Leave Feedback',
+    hudGen: '⚡ Generators: ',
+    hudMist: '❄ Mist: ',
+    winTitle: 'YOU ESCAPED!',
+    winSub: 'Greenhouse restarted. Time left: ',
+    loseTitle: 'YOU WERE FOUND',
+    loseSub: 'Source found. Try managing your trails.',
+    fbTitle: '✉️ Feedback',
+    fbDesc: 'Write your feedback, idea or report a bug. It helps make the game better!',
+    fbPlace: 'Your message...',
+    fbCancel: 'Cancel',
+    fbSend: 'Send',
+    fbAlert: 'Please write a message before sending.',
+    mailSub: 'Feedback for "Warm Trail"',
+    mailBody: 'Message from player:\n\n',
+    mailFooter: '\n\n---\nSent from "Warm Trail".'
+  },
+  ru: {
+    title: 'ТЁПЛЫЙ СЛЕД',
+    subtitle: 'Ночная смена в стеклянной оранжерее.',
+    inst1: 'Запусти 3 генератора и уйди до рассвета.',
+    inst2: 'Монстрики слепы, но чувствуют твои следы:',
+    inst3: 'тепло, звук шагов и свет.',
+    inst4: 'Управляй тем, какой след оставляешь.',
+    instPC: 'WASD / стрелки — движение, Shift — бег, E — туман.',
+    instTouch: 'Джойстик слева, туман — справа.',
+    btnStart: 'Начать смену',
+    btnFeedback: '✉️ Связаться с разработчиком',
+    btnMenu: 'В меню',
+    btnFeedbackOver: '✉️ Оставить отзыв',
+    hudGen: '⚡ Генераторы: ',
+    hudMist: '❄ Туман: ',
+    winTitle: 'ВЫ УШЛИ!',
+    winSub: 'Оранжерея перезапущена. До рассвета осталось ',
+    loseTitle: 'ВАС НАШЛИ',
+    loseSub: 'Источник найден. Попробуйте управлять следами.',
+    fbTitle: '✉️ Обратная связь',
+    fbDesc: 'Напишите ваш отзыв, идею или сообщите об ошибке. Это поможет сделать игру лучше!',
+    fbPlace: 'Ваше сообщение...',
+    fbCancel: 'Отмена',
+    fbSend: 'Отправить',
+    fbAlert: 'Пожалуйста, напишите сообщение перед отправкой.',
+    mailSub: 'Отзыв об игре "Warm Trail"',
+    mailBody: 'Сообщение от игрока:\n\n',
+    mailFooter: '\n\n---\nОтправлено из игры "Warm Trail".'
+  }
+};
+
+function t(key) {
+  return LANG[currentLang][key] || LANG['en'][key] || key;
+}
+
+// =================================================
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+const W = 1000, H = 700;
+let scale = 1, offsetX = 0, offsetY = 0;
+
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+let screen = 'title';
+let game = { time: 100, mist: 3, over: false, won: false };
+let deathFlash = 0;
+let heatTrails = [];
+let soundTrails = [];
+let mistEffects = [];
+let monsters = [];
+let keys = {};
+
+const player = {
+  x: 350, y: 350, r: 13,
+  dirX: 1, dirY: 0,
+  moving: false, running: false,
+  heatTimer: 0, soundTimer: 0
+};
+
+const obstacles = [
+  {x:0, y:0, w:W, h:20},
+  {x:0, y:H-20, w:W, h:20},
+  {x:0, y:0, w:20, h:H},
+  {x:W-20, y:0, w:20, h:H},
+  {x:150, y:150, w:100, h:100, planter:true},
+  {x:750, y:150, w:100, h:100, planter:true},
+  {x:150, y:450, w:100, h:100, planter:true},
+  {x:750, y:450, w:100, h:100, planter:true},
+  {x:450, y:300, w:100, h:100}
+];
+
+const generators = [
+  {x: 100, y: 350, active: false, prog: 0},
+  {x: 900, y: 350, active: false, prog: 0},
+  {x: 500, y: 640, active: false, prog: 0}
+];
+
+const exitPos = {x: 500, y: 60};
+
+const joystickBase = {x: 0, y: 0};
+const mistBtn = {x: 0, y: 0, r: 0};
+const joystick = {active: false, id: null, baseX: 0, baseY: 0, dx: 0, dy: 0, mag: 0};
+
+// ============ LANGUAGE TOGGLE & UI LOGIC ============
+const langBtn = document.getElementById('langToggle');
+const feedbackModal = document.getElementById('feedbackModal');
+const feedbackText = document.getElementById('feedbackText');
+const sendFeedbackBtn = document.getElementById('sendFeedback');
+const cancelFeedbackBtn = document.getElementById('cancelFeedback');
+
+function updateModalLanguage() {
+  document.getElementById('fbTitle').textContent = t('fbTitle');
+  document.getElementById('fbDesc').textContent = t('fbDesc');
+  feedbackText.placeholder = t('fbPlace');
+  cancelFeedbackBtn.textContent = t('fbCancel');
+  sendFeedbackBtn.textContent = t('fbSend');
+}
+
+langBtn.addEventListener('click', () => {
+  currentLang = currentLang === 'en' ? 'ru' : 'en';
+  langBtn.textContent = currentLang === 'en' ? 'RU' : 'EN';
+  updateModalLanguage();
+});
+
+function openFeedback() {
+  updateModalLanguage(); // Обновляем язык перед открытием
+  feedbackModal.style.display = 'flex';
+  feedbackText.focus();
+}
+
+function closeFeedback() {
+  feedbackModal.style.display = 'none';
+  feedbackText.value = '';
+}
+
+sendFeedbackBtn.addEventListener('click', () => {
+  const text = feedbackText.value.trim();
+  if (!text) {
+    alert(t('fbAlert'));
+    return;
+  }
+
+  const email = 'abdul009la@gmail.com';
+  const subject = encodeURIComponent(t('mailSub'));
+  const body = encodeURIComponent(t('mailBody') + text + t('mailFooter'));
+  
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  
+  closeFeedback();
+});
+
+cancelFeedbackBtn.addEventListener('click', closeFeedback);
+
+// =================================================
+
+class Monster {
+  constructor(type, x, y, color, speed) {
+    this.type = type;
+    this.x = x; this.y = y;
+    this.r = 15;
+    this.color = color;
+    this.speed = speed;
+    this.eyeAngle = 0;
+    this.retreatTimer = 0;
+    this.forcedTimer = 0;
+    this.forcedX = 0; this.forcedY = 0;
+    this.stuckTimer = 0;
+    this.patrolPoint = {x, y};
+    this.patrolTimer = Math.random() * 3;
+  }
+}
+
+// ============ RESIZE ============
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  scale = Math.min(canvas.width / W, canvas.height / H);
+  offsetX = (canvas.width - W * scale) / 2;
+  offsetY = (canvas.height - H * scale) / 2;
+
+  joystickBase.x = 90 * dpr;
+  joystickBase.y = canvas.height - 90 * dpr;
+  mistBtn.r = 42 * dpr;
+  mistBtn.x = canvas.width - 70 * dpr;
+  mistBtn.y = canvas.height - 70 * dpr;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+
+// ============ HELPERS ============
+function resolveCollision(e, obs) {
+  for (let iter = 0; iter < 2; iter++) {
+    for (const o of obs) {
+      const cx = Math.max(o.x, Math.min(e.x, o.x + o.w));
+      const cy = Math.max(o.y, Math.min(e.y, o.y + o.h));
+      const dx = e.x - cx;
+      const dy = e.y - cy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < e.r * e.r) {
+        if (d2 > 0.0001) {
+          const d = Math.sqrt(d2);
+          const push = e.r - d;
+          e.x += (dx / d) * push;
+          e.y += (dy / d) * push;
+        } else {
+          const left = e.x - o.x;
+          const right = o.x + o.w - e.x;
+          const top = e.y - o.y;
+          const bottom = o.y + o.h - e.y;
+          const m = Math.min(left, right, top, bottom);
+          if (m === left) e.x = o.x - e.r;
+          else if (m === right) e.x = o.x + o.w + e.r;
+          else if (m === top) e.y = o.y - e.r;
+          else e.y = o.y + o.h + e.r;
+        }
+      }
+    }
+  }
+}
+
+// ============ GAME LOGIC ============
+function resetGame() {
+  game.time = 100;
+  game.mist = 3;
+  game.over = false;
+  game.won = false;
+  deathFlash = 0;
+
+  player.x = 350; player.y = 350;
+  player.dirX = 1; player.dirY = 0;
+  player.heatTimer = 0; player.soundTimer = 0;
+  player.moving = false; player.running = false;
+
+  heatTrails = [];
+  soundTrails = [];
+  mistEffects = [];
+
+  for (const g of generators) { g.active = false; g.prog = 0; }
+
+  monsters = [
+    new Monster('candle',   100, 100, '#ff6b3d', 110),
+    new Monster('listener', 900, 100, '#4db8ff', 100),
+    new Monster('mirror',   100, 600, '#b06bff', 105),
+    new Monster('gardener', 900, 600, '#6bff8f', 92)
+  ];
+}
+
+function startGame() {
+  resetGame();
+  screen = 'playing';
+}
+
+function lose() {
+  if (game.over) return;
+  game.over = true;
+  game.won = false;
+  screen = 'over';
+  deathFlash = 1;
+}
+
+function win() {
+  if (game.over) return;
+  game.over = true;
+  game.won = true;
+  screen = 'over';
+}
+
+function useMist() {
+  if (screen !== 'playing' || game.over) return;
+  if (game.mist <= 0) return;
+  game.mist--;
+
+  const R = 130;
+  for (let i = heatTrails.length - 1; i >= 0; i--) {
+    if (Math.hypot(heatTrails[i].x - player.x, heatTrails[i].y - player.y) < R) {
+      heatTrails.splice(i, 1);
+    }
+  }
+  for (let i = soundTrails.length - 1; i >= 0; i--) {
+    if (Math.hypot(soundTrails[i].x - player.x, soundTrails[i].y - player.y) < R) {
+      soundTrails.splice(i, 1);
+    }
+  }
+  for (const m of monsters) {
+    if (Math.hypot(m.x - player.x, m.y - player.y) < R) {
+      m.retreatTimer = 2.5;
+    }
+  }
+  mistEffects.push({x: player.x, y: player.y, life: 0.9, maxLife: 0.9});
+}
+
+function updatePlayer(dt) {
+  let ix = 0, iy = 0, mag = 0;
+
+  if (joystick.active && joystick.mag > 0.12) {
+    ix = joystick.dx;
+    iy = joystick.dy;
+    mag = joystick.mag;
+  } else {
+    let kx = 0, ky = 0;
+    if (keys['w'] || keys['arrowup']) ky -= 1;
+    if (keys['s'] || keys['arrowdown']) ky += 1;
+    if (keys['a'] || keys['arrowleft']) kx -= 1;
+    if (keys['d'] || keys['arrowright']) kx += 1;
+    const kl = Math.hypot(kx, ky);
+    if (kl > 0) {
+      ix = kx / kl;
+      iy = ky / kl;
+      mag = keys['shift'] ? 1 : 0.5;
+    }
+  }
+
+  player.moving = mag > 0.1;
+  player.running = mag > 0.7;
+
+  if (player.moving) {
+    player.dirX = ix;
+    player.dirY = iy;
+    const speed = 30 + mag * 220;
+    player.x += ix * speed * dt;
+    player.y += iy * speed * dt;
+    resolveCollision(player, obstacles);
+    player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+    player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+  }
+
+  player.heatTimer -= dt;
+  if (player.moving && player.heatTimer <= 0) {
+    player.heatTimer = 0.18;
+    heatTrails.push({x: player.x, y: player.y, life: 7, maxLife: 7});
+    if (heatTrails.length > 120) heatTrails.shift();
+  }
+  player.soundTimer -= dt;
+  if (player.running && player.soundTimer <= 0) {
+    player.soundTimer = 0.12;
+    soundTrails.push({x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, life: 3, maxLife: 3});
+    if (soundTrails.length > 60) soundTrails.shift();
+  }
+}
+
+function updateTrails(dt) {
+  for (let i = heatTrails.length - 1; i >= 0; i--) {
+    heatTrails[i].life -= dt;
+    if (heatTrails[i].life <= 0) heatTrails.splice(i, 1);
+  }
+  for (let i = soundTrails.length - 1; i >= 0; i--) {
+    soundTrails[i].life -= dt;
+    if (soundTrails[i].life <= 0) soundTrails.splice(i, 1);
+  }
+  for (let i = mistEffects.length - 1; i >= 0; i--) {
+    mistEffects[i].life -= dt;
+    if (mistEffects[i].life <= 0) mistEffects.splice(i, 1);
+  }
+}
+
+function getMonsterTarget(m) {
+  if (m.type === 'candle') {
+    let best = null, bestLife = 0;
+    for (const t of heatTrails) {
+      if (t.life > bestLife) { bestLife = t.life; best = t; }
+    }
+    if (best) return {x: best.x, y: best.y};
+    return m.patrolPoint;
+  }
+
+  if (m.type === 'listener') {
+    let last = null, lastLife = 0;
+    for (const t of soundTrails) {
+      if (t.life > lastLife) { lastLife = t.life; last = t; }
+    }
+    if (last) {
+      return {
+        x: last.x + last.dirX * 160,
+        y: last.y + last.dirY * 160
+      };
+    }
+    let activeGen = null;
+    for (const g of generators) if (g.active) activeGen = g;
+    if (activeGen) return {x: activeGen.x, y: activeGen.y};
+    return m.patrolPoint;
+  }
+
+  if (m.type === 'mirror') {
+    let nearestM = null, nearestD = Infinity;
+    for (const other of monsters) {
+      if (other === m) continue;
+      const d = Math.hypot(other.x - m.x, other.y - m.y);
+      if (d < nearestD) { nearestD = d; nearestM = other; }
+    }
+    let lastTrail = null, lastLife = 0;
+    for (const t of heatTrails) if (t.life > lastLife) { lastLife = t.life; lastTrail = t; }
+    for (const t of soundTrails) if (t.life > lastLife) { lastLife = t.life; lastTrail = t; }
+
+    if (nearestM && lastTrail) {
+      return {
+        x: Math.max(40, Math.min(W - 40, 2 * lastTrail.x - nearestM.x)),
+        y: Math.max(40, Math.min(H - 40, 2 * lastTrail.y - nearestM.y))
+      };
+    }
+    return m.patrolPoint;
+  }
+
+  if (m.type === 'gardener') {
+    if (Math.hypot(player.x - m.x, player.y - m.y) < 100) {
+      return {x: player.x, y: player.y};
+    }
+    let lastGen = null;
+    for (const g of generators) if (g.active) lastGen = g;
+    if (lastGen) return {x: lastGen.x, y: lastGen.y};
+    return m.patrolPoint;
+  }
+
+  return m.patrolPoint;
+}
+
+function updateMonsters(dt) {
+  for (const m of monsters) {
+    m.patrolTimer -= dt;
+    if (m.patrolTimer <= 0) {
+      m.patrolTimer = 4 + Math.random() * 4;
+      m.patrolPoint = {
+        x: 60 + Math.random() * (W - 120),
+        y: 60 + Math.random() * (H - 120)
+      };
+    }
+
+    let tx, ty;
+    if (m.retreatTimer > 0) {
+      m.retreatTimer -= dt;
+      const dx = m.x - player.x, dy = m.y - player.y;
+      const d = Math.hypot(dx, dy) || 1;
+      tx = m.x + (dx / d) * 150;
+      ty = m.y + (dy / d) * 150;
+    } else if (m.forcedTimer > 0) {
+      m.forcedTimer -= dt;
+      tx = m.forcedX; ty = m.forcedY;
+    } else {
+      const t = getMonsterTarget(m);
+      tx = t.x; ty = t.y;
+    }
+
+    let dx = tx - m.x, dy = ty - m.y;
+    const d = Math.hypot(dx, dy);
+
+    if (d < 10) {
+      const a = m.eyeAngle + (Math.random() - 0.5) * 1.5;
+      dx = Math.cos(a) * 0.4;
+      dy = Math.sin(a) * 0.4;
+    } else {
+      dx /= d; dy /= d;
+      m.eyeAngle = Math.atan2(dy, dx);
+    }
+
+    const oldX = m.x, oldY = m.y;
+    m.x += dx * m.speed * dt;
+    m.y += dy * m.speed * dt;
+    resolveCollision(m, obstacles);
+    m.x = Math.max(m.r, Math.min(W - m.r, m.x));
+    m.y = Math.max(m.r, Math.min(H - m.r, m.y));
+
+    const moved = Math.hypot(m.x - oldX, m.y - oldY);
+    if (moved < m.speed * dt * 0.35 && d > 15) {
+      m.stuckTimer += dt;
+      if (m.stuckTimer > 0.6 && m.forcedTimer <= 0 && m.retreatTimer <= 0) {
+        const a = Math.random() * Math.PI * 2;
+        m.forcedX = Math.max(40, Math.min(W - 40, m.x + Math.cos(a) * 200));
+        m.forcedY = Math.max(40, Math.min(H - 40, m.y + Math.sin(a) * 200));
+        m.forcedTimer = 0.8;
+        m.stuckTimer = 0;
+      }
+    } else {
+      m.stuckTimer = 0;
+    }
+
+    if (m.retreatTimer <= 0 && Math.hypot(m.x - player.x, m.y - player.y) < m.r + player.r) {
+      lose();
+      return;
+    }
+  }
+}
+
+function updateGenerators(dt) {
+  for (const g of generators) {
+    if (g.active) continue;
+    const d = Math.hypot(player.x - g.x, player.y - g.y);
+    if (d < 55 && !player.running) {
+      g.prog += dt * 0.7;
+      if (g.prog >= 1) {
+        g.prog = 1;
+        g.active = true;
+      }
+    } else if (d >= 55) {
+      g.prog = Math.max(0, g.prog - dt * 0.5);
+    }
+  }
+}
+
+function checkWin() {
+  const allActive = generators.every(g => g.active);
+  if (allActive && Math.hypot(player.x - exitPos.x, player.y - exitPos.y) < 45) {
+    win();
+  }
+}
+
+function update(dt) {
+  if (screen !== 'playing' || game.over) return;
+
+  game.time -= dt;
+  if (game.time <= 0) {
+    game.time = 0;
+    lose();
+    return;
+  }
+
+  updatePlayer(dt);
+  updateTrails(dt);
+  updateGenerators(dt);
+  updateMonsters(dt);
+  if (!game.over) checkWin();
+}
+
+// ============ RENDER ============
+function applyTransform() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+}
+
+function drawBackground() {
+  const grd = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 700);
+  grd.addColorStop(0, '#12281f');
+  grd.addColorStop(0.6, '#0a1812');
+  grd.addColorStop(1, '#050b08');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(120, 220, 180, 0.06)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    if (o.planter) {
+      ctx.fillStyle = '#1a3a28';
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = '#2d5c3e';
+      ctx.fillRect(o.x + 6, o.y + 6, o.w - 12, o.h - 12);
+      ctx.fillStyle = 'rgba(90, 200, 120, 0.5)';
+      for (let i = 0; i < 5; i++) {
+        const px = o.x + 18 + ((i * 37) % (o.w - 36));
+        const py = o.y + 18 + ((i * 53) % (o.h - 36));
+        ctx.beginPath();
+        ctx.arc(px, py, 10 + (i % 3) * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(120, 255, 170, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(o.x + 6, o.y + 6, o.w - 12, o.h - 12);
+    } else {
+      ctx.fillStyle = '#0e1f18';
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.strokeStyle = 'rgba(100, 200, 160, 0.25)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(o.x + 1, o.y + 1, o.w - 2, o.h - 2);
+    }
+  }
+}
+
+function drawTrails() {
+  for (const t of heatTrails) {
+    const a = (t.life / t.maxLife) * 0.45;
+    const r = 6 + (1 - t.life / t.maxLife) * 6;
+    const grd = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, r * 2);
+    grd.addColorStop(0, `rgba(255, 120, 60, ${a})`);
+    grd.addColorStop(1, 'rgba(255, 80, 40, 0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, r * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const t of soundTrails) {
+    const a = (t.life / t.maxLife) * 0.5;
+    ctx.strokeStyle = `rgba(80, 180, 255, ${a})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, 8 + (1 - t.life / t.maxLife) * 14, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawMist() {
+  for (const e of mistEffects) {
+    const t = e.life / e.maxLife;
+    const r = 40 + (1 - t) * 100;
+    const grd = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r);
+    grd.addColorStop(0, `rgba(180, 230, 255, ${t * 0.5})`);
+    grd.addColorStop(1, 'rgba(180, 230, 255, 0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawGenerators() {
+  for (const g of generators) {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003);
+    if (g.active) {
+      const grd = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, 50);
+      grd.addColorStop(0, `rgba(100, 255, 160, ${0.35 + pulse * 0.15})`);
+      grd.addColorStop(1, 'rgba(100, 255, 160, 0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 50, 0, Math.PI * 2); ctx.fill();
+
+      ctx.fillStyle = '#1d4a32';
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#6bffb0';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#6bffb0';
+      ctx.beginPath(); ctx.arc(g.x, g.y, 8, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#1a1f1d';
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = g.prog > 0 ? '#ffb060' : '#3a4a44';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.stroke();
+
+      if (g.prog > 0) {
+        ctx.strokeStyle = '#ffb060';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, 16, -Math.PI / 2, -Math.PI / 2 + g.prog * Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = g.prog > 0 ? '#ffb060' : '#4a5a54';
+      ctx.beginPath(); ctx.arc(g.x, g.y, 6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawExit() {
+  const allActive = generators.every(g => g.active);
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
+  ctx.save();
+  ctx.translate(exitPos.x, exitPos.y);
+  if (allActive) {
+    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, 45);
+    grd.addColorStop(0, `rgba(140, 255, 200, ${0.4 + pulse * 0.3})`);
+    grd.addColorStop(1, 'rgba(140, 255, 200, 0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = allActive ? '#0d3a26' : '#1a1f1d';
+  ctx.fillRect(-28, -18, 56, 36);
+  ctx.strokeStyle = allActive ? '#8cffc8' : '#3a4a44';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-28, -18, 56, 36);
+  ctx.fillStyle = allActive ? '#8cffc8' : '#3a4a44';
+  ctx.beginPath();
+  ctx.moveTo(10, 0); ctx.lineTo(-6, -8); ctx.lineTo(-6, 8);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
+  const r = player.r + (player.running ? pulse * 2 : 0);
+
+  const a = Math.atan2(player.dirY, player.dirX);
+  const len = player.running ? 120 : 160;
+  const spread = 0.55;
+  const grd = ctx.createRadialGradient(player.x, player.y, 10, player.x, player.y, len);
+  grd.addColorStop(0, 'rgba(255, 240, 180, 0.22)');
+  grd.addColorStop(1, 'rgba(255, 240, 180, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y);
+  ctx.arc(player.x, player.y, len, a - spread, a + spread);
+  ctx.closePath();
+  ctx.fill();
+
+  const hgrd = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, r * 2.5);
+  hgrd.addColorStop(0, `rgba(255, 150, 80, ${0.35 + pulse * 0.1})`);
+  hgrd.addColorStop(1, 'rgba(255, 120, 60, 0)');
+  ctx.fillStyle = hgrd;
+  ctx.beginPath(); ctx.arc(player.x, player.y, r * 2.5, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = '#ffe8b0';
+  ctx.beginPath(); ctx.arc(player.x, player.y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffb060';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#7a4a20';
+  ctx.beginPath();
+  ctx.arc(player.x + player.dirX * 6, player.y + player.dirY * 6, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMonster(m) {
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005 + m.x * 0.01);
+  const retreating = m.retreatTimer > 0;
+
+  const grd = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 3);
+  grd.addColorStop(0, m.color + '55');
+  grd.addColorStop(1, m.color + '00');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 3, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = retreating ? '#2a3a3a' : m.color;
+  ctx.globalAlpha = retreating ? 0.5 : 1;
+
+  ctx.beginPath();
+  const spikes = 7;
+  for (let i = 0; i <= spikes * 2; i++) {
+    const ang = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 === 0 ? m.r : m.r * 0.78;
+    const px = m.x + Math.cos(ang) * rr;
+    const py = m.y + Math.sin(ang) * rr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.arc(
+    m.x + Math.cos(m.eyeAngle) * m.r * 0.25,
+    m.y + Math.sin(m.eyeAngle) * m.r * 0.25,
+    m.r * 0.3, 0, Math.PI * 2
+  );
+  ctx.fill();
+
+  if (retreating) {
+    ctx.strokeStyle = 'rgba(180, 230, 255, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 4 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+function drawHUD() {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const pad = 14 * dpr;
+  const fs = Math.max(14, 16 * dpr);
+  ctx.font = `600 ${fs}px -apple-system, sans-serif`;
+  ctx.textBaseline = 'top';
+
+  const timeColor = game.time < 20 ? '#ff6060' : game.time < 40 ? '#ffb060' : '#c8ffd8';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(pad, pad, 130 * dpr, 26 * dpr);
+  ctx.fillStyle = timeColor;
+  ctx.fillText('⏱ ' + Math.ceil(game.time) + (currentLang === 'en' ? 's' : 'с'), pad + 10 * dpr, pad + 4 * dpr);
+
+  let active = 0;
+  for (const g of generators) if (g.active) active++;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(pad, pad + 32 * dpr, 180 * dpr, 26 * dpr);
+  ctx.fillStyle = active === 3 ? '#8cffc8' : '#ffb060';
+  ctx.fillText(t('hudGen') + active + '/3', pad + 10 * dpr, pad + 36 * dpr);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(pad, pad + 64 * dpr, 150 * dpr, 26 * dpr);
+  ctx.fillStyle = '#a0d8ff';
+  ctx.fillText(t('hudMist') + game.mist, pad + 10 * dpr, pad + 68 * dpr);
+
+  ctx.restore();
+}
+
+function drawTouchUI() {
+  if (!isTouch) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.font = `${12 * dpr}px sans-serif`;
+    ctx.fillStyle = 'rgba(160, 220, 200, 0.4)';
+    ctx.textAlign = 'center';
+    ctx.fillText(t('instPC'), canvas.width / 2, canvas.height - 20 * dpr);
+    ctx.restore();
+    return;
+  }
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  ctx.strokeStyle = 'rgba(200, 255, 220, 0.25)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.beginPath();
+  ctx.arc(joystickBase.x, joystickBase.y, 60 * dpr, 0, Math.PI * 2);
+  ctx.stroke();
+
+  let kx = joystickBase.x, ky = joystickBase.y;
+  if (joystick.active) {
+    kx += joystick.dx * 60 * dpr;
+    ky += joystick.dy * 60 * dpr;
+  }
+  ctx.fillStyle = 'rgba(200, 255, 220, 0.35)';
+  ctx.beginPath();
+  ctx.arc(kx, ky, 28 * dpr, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = game.mist > 0 ? 'rgba(100, 180, 255, 0.35)' : 'rgba(80, 80, 80, 0.25)';
+  ctx.beginPath();
+  ctx.arc(mistBtn.x, mistBtn.y, mistBtn.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = game.mist > 0 ? 'rgba(160, 220, 255, 0.7)' : 'rgba(100,100,100,0.4)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
+
+  ctx.fillStyle = game.mist > 0 ? '#d0f0ff' : '#666';
+  ctx.font = `600 ${22 * dpr}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❄', mistBtn.x, mistBtn.y);
+
+  ctx.restore();
+}
+
+// Универсальная функция отрисовки кнопки
+function drawUIButton(x, y, w, h, text, bg, stroke, textColor = '#fff') {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const r = 12 * dpr;
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = textColor;
+  ctx.font = `600 ${Math.max(14, 16 * Math.min(dpr, 2))}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+function drawOverlay() {
+  if (screen !== 'over') return;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const big = Math.max(28, 40 * Math.min(dpr, 2));
+  const mid = Math.max(16, 20 * Math.min(dpr, 2));
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = game.won ? '#8cffc8' : '#ff7070';
+  ctx.font = `700 ${big}px -apple-system, sans-serif`;
+  ctx.fillText(game.won ? t('winTitle') : t('loseTitle'), cx, cy - 60 * dpr);
+
+  ctx.fillStyle = '#c8e0d8';
+  ctx.font = `400 ${mid}px -apple-system, sans-serif`;
+  if (game.won) {
+    ctx.fillText(t('winSub') + Math.ceil(game.time) + (currentLang === 'en' ? 's.' : 'с.'), cx, cy - 10 * dpr);
+  } else {
+    ctx.fillText(t('loseSub'), cx, cy - 10 * dpr);
+  }
+
+  const bw = 240 * dpr, bh = 50 * dpr;
+  
+  const menuY = cy + 40 * dpr;
+  drawUIButton(cx - bw/2, menuY, bw, bh, t('btnMenu'), game.won ? '#1d5c3a' : '#5c1d1d', game.won ? '#8cffc8' : '#ff7070');
+
+  const fbY = menuY + bh + 15 * dpr;
+  drawUIButton(cx - bw/2, fbY, bw, bh, t('btnFeedbackOver'), '#2a3a3a', '#8cffc8', '#b0d8c8');
+
+  ctx.restore();
+}
+
+function drawTitle() {
+  if (screen !== 'title') return;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const big = Math.max(30, 44 * Math.min(dpr, 2));
+  const mid = Math.max(14, 17 * Math.min(dpr, 2));
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#8cffc8';
+  ctx.font = `700 ${big}px -apple-system, sans-serif`;
+  ctx.fillText(t('title'), cx, cy - 180 * dpr);
+
+  ctx.fillStyle = '#b0d8c8';
+  ctx.font = `400 ${mid}px -apple-system, sans-serif`;
+  const lines = [
+    t('subtitle'),
+    t('inst1'),
+    '',
+    t('inst2'),
+    t('inst3'),
+    t('inst4'),
+    '',
+    isTouch ? t('instTouch') : t('instPC')
+  ];
+  const lh = mid * 1.55;
+  let y = cy - 110 * dpr;
+  for (const line of lines) {
+    ctx.fillText(line, cx, y);
+    y += lh;
+  }
+
+  const bw = 250 * dpr, bh = 56 * dpr;
+  
+  const startY = cy + 80 * dpr;
+  drawUIButton(cx - bw/2, startY, bw, bh, t('btnStart'), '#1d5c3a', '#8cffc8');
+
+  const fbY = startY + bh + 15 * dpr;
+  drawUIButton(cx - bw/2, fbY, bw, 45 * dpr, t('btnFeedback'), '#2a3a3a', '#8cffc8', '#b0d8c8');
+
+  ctx.restore();
+}
+
+function drawFlash() {
+  if (deathFlash > 0) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = `rgba(255, 40, 40, ${deathFlash * 0.5})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+}
+
+function render() {
+  applyTransform();
+  drawBackground();
+  drawObstacles();
+  drawTrails();
+  drawMist();
+  drawGenerators();
+  drawExit();
+  for (const m of monsters) drawMonster(m);
+  if (screen === 'playing' || screen === 'title') drawPlayer();
+  drawHUD();
+  drawTouchUI();
+  drawTitle();
+  drawOverlay();
+  drawFlash();
+}
+
+// ============ INPUT ============
+function screenToWorld(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const x = (clientX - rect.left) * dpr;
+  const y = (clientY - rect.top) * dpr;
+  return {
+    x: (x - offsetX) / scale,
+    y: (y - offsetY) / scale,
+    px: x,
+    py: y
+  };
+}
+
+function onPointerDown(e) {
+  e.preventDefault();
+  
+  if (feedbackModal.style.display === 'flex') return;
+
+  const w = screenToWorld(e.clientX, e.clientY);
+
+  if (screen === 'title') {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const bw = 250 * dpr, bh = 56 * dpr;
+    const startY = cy + 80 * dpr;
+    const fbY = startY + bh + 15 * dpr;
+
+    if (w.px >= cx - bw/2 && w.px <= cx + bw/2 && w.py >= startY && w.py <= startY + bh) {
+      startGame();
+    }
+    else if (w.px >= cx - bw/2 && w.px <= cx + bw/2 && w.py >= fbY && w.py <= fbY + 45 * dpr) {
+      openFeedback();
+    }
+    return;
+  }
+
+  if (screen === 'over') {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const bw = 240 * dpr, bh = 50 * dpr;
+    const menuY = cy + 40 * dpr;
+    const fbY = menuY + bh + 15 * dpr;
+
+    if (w.px >= cx - bw/2 && w.px <= cx + bw/2 && w.py >= menuY && w.py <= menuY + bh) {
+      screen = 'title';
+    }
+    else if (w.px >= cx - bw/2 && w.px <= cx + bw/2 && w.py >= fbY && w.py <= fbY + bh) {
+      openFeedback();
+    }
+    return;
+  }
+
+  if (screen !== 'playing') return;
+
+  if (Math.hypot(w.px - mistBtn.x, w.py - mistBtn.y) < mistBtn.r * 1.2) {
+    useMist();
+    return;
+  }
+
+  if (joystick.id === null) {
+    joystick.active = true;
+    joystick.id = e.pointerId;
+    joystick.baseX = w.px;
+    joystick.baseY = w.py;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joystick.mag = 0;
+  }
+}
+
+function onPointerMove(e) {
+  if (!joystick.active || e.pointerId !== joystick.id) return;
+  e.preventDefault();
+  const w = screenToWorld(e.clientX, e.clientY);
+  let dx = w.px - joystick.baseX;
+  let dy = w.py - joystick.baseY;
+  const d = Math.hypot(dx, dy);
+  const maxR = 70 * dpr;
+  if (d > maxR) {
+    dx = (dx / d) * maxR;
+    dy = (dy / d) * maxR;
+  }
+  joystick.dx = dx / maxR;
+  joystick.dy = dy / maxR;
+  joystick.mag = Math.min(1, d / maxR);
+}
+
+function onPointerUp(e) {
+  if (e.pointerId === joystick.id) {
+    joystick.active = false;
+    joystick.id = null;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joystick.mag = 0;
+  }
+}
+
+canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerUp);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('keydown', e => {
+  if (feedbackModal.style.display === 'flex') return;
+
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (k === ' ' || k === 'enter') {
+    e.preventDefault();
+    if (screen === 'title') startGame();
+    else if (screen === 'over') screen = 'title';
+  }
+  if (k === 'e' || k === 'f') useMist();
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+// ============ MAIN LOOP ============
+let lastT = performance.now();
+
+function loop(now) {
+  let dt = (now - lastT) / 1000;
+  lastT = now;
+  if (dt > 0.05) dt = 0.05;
+  if (dt < 0) dt = 0;
+
+  if (deathFlash > 0) deathFlash = Math.max(0, deathFlash - dt * 2);
+
+  if (screen === 'playing') {
+    update(dt);
+  } else if (screen === 'title') {
+    updateTrails(dt);
+  }
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ============ INIT ============
+resize();
+resetGame();
+updateModalLanguage();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
